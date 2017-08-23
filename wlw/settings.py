@@ -51,32 +51,6 @@ SPIDER_MIDDLEWARES = {
    'wlw.middlewares.WlwSpiderMiddleware': 543,
 }
 
-FEED_EXPORTERS = {
-    'csv': 'wlw.exporters.CSVcustomerItemExporter'
-}
-
-# By specifying the fields to export, the CSV export honors the order
-# rather than using a random order.
-EXPORT_FIELDS = [
-    'query',
-    'category',
-    'total_firms',
-    'firmaId',
-    'name',
-    'full_addr',
-    'street',
-    'building',
-    'zip',
-    'city',
-    'phone',
-    'email',
-    'site',
-    'delivery',
-    'facts',
-    'certificates',
-    'angebots'
-]
-
 # Enable or disable downloader middlewares
 # See http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
 #DOWNLOADER_MIDDLEWARES = {
@@ -85,9 +59,10 @@ EXPORT_FIELDS = [
 
 # Enable or disable extensions
 # See http://scrapy.readthedocs.org/en/latest/topics/extensions.html
-#EXTENSIONS = {
-#    'scrapy.extensions.telnet.TelnetConsole': None,
-#}
+EXTENSIONS = {
+   # 'scrapy.extensions.telnet.TelnetConsole': None,
+    'wlw.extensions.JobState': 500
+}
 
 # Configure item pipelines
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
