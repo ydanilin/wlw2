@@ -1,0 +1,9 @@
+
+- Druckereien
+- Werbetechnik
+- Werbeartikel
+- Werbeagenturen
+def scrape_wlw (“[country e.g. “de”]”,“[keyword e.g. “druckereien”]”)
+
+https://www.wlw.de/de/kategorien?utf8=%E2%9C%93&entered_search=1&q=Druckereien
+https://www.wlw.de/de/kategorien?entered_search=1&q=Druckereien&utf8=%E2%9C%93

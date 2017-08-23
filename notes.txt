@@ -1,0 +1,48 @@
+﻿conda create --name <name> python=3.5
+
+To start new project:
+1. activate tomik
+2. in the folder with ALL projects: scrapy startproject <proj folder name>
+
+To inspect page without scraper:
+scrapy shell "<url>"  # double quotes in Windows!
+
+To run:
+scrapy crawl <scraper name (in class attrib)>
+
+
+To kill in ConEmu
+Ctrl + Alt + Break = kill active process
+
+crawler.spider.start_urls
+
+Nächste
+$x('//ul[@class="pagination"]/li[not(@class)]/a[text()[contains(.,"chste")]]')
+
+in settings.py:
+CONCURRENT_REQUESTS = 1
+
+crawl
+wlw_base
+-s
+CLOSESPIDER_PAGECOUNT=500
+-s
+LOG_LEVEL=INFO
+-s
+HTTPCACHE_ENABLED=1
+-s
+LOGSTATS_INTERVAL=10
+
+https://stackoverflow.com/questions/13527921/scrapy-silently-drop-an-item
+
+sometimes cache blocks requests. delete cache in this case.
+
+http://bus23.ru/
+
+Item exporters:
+https://stackoverflow.com/questions/6943778/python-scrapy-how-to-get-csvitemexporter-to-write-columns-in-a-specific-order
+https://stackoverflow.com/questions/5245047/modifiying-csv-export-in-scrapy
+
+
+Reimer: https://www.wlw.de/de/firma/456823
+HFS: https://www.wlw.de/de/firma/hfs-verpackungen-gmbh-1713082?category_id=95529&q=Tiefdruck
