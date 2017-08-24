@@ -14,31 +14,10 @@ class WlwBaseSpider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         super(WlwBaseSpider, self).__init__(*args, *kwargs)
         self.dbms = None
-        self.ids_seen = None
 
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
-    start_urls = [#'Druckereien']#,
-                  # 'Werbetechnik',
-                  # 'Werbeartikel',
-                  'Werbeagenturen'
-                 ]
-
-    def huj(value):
-        # exclude
-        # t1 = value.find('/bogenoffsetdruck?')
-        # t2 = value.find('/druck-von-buechern?')
-        # t3 = value.find('/grossformatdruck?')
-        # t4 = value.find('/kataloge?')
-        # t5 = value.find('/offsetdruck?')
-        # t6 = value.find('/siebdruck?')
-        # t7 = value.find('/textildruck?')
-        #
-        # if t7 >= 0:
-        #     logger.info('Link dropped: {0}'.format(value))
-        #     return None
-        # else:
-        return value
+    start_urls = []
 
     def addNameInUrl(request):
         part = request.url.rsplit('?', 1)[0]
@@ -65,7 +44,7 @@ class WlwBaseSpider(CrawlSpider):
 
     rules = (
         # 0. to go from start urls keyword synonym list to specific tifedruck
-        Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj),
+        Rule(LinkExtractor(restrict_css='a.list-group-item'),
              process_request=addNameInUrl),
         # 1. from firms list to specific firm
         Rule(LinkExtractor(
@@ -80,11 +59,14 @@ class WlwBaseSpider(CrawlSpider):
     )
 
     def start_requests(self):
+        self.start_urls = self.dbms.loadJobState()
         for url in self.start_urls:
-            fullUrl = ('https://www.wlw.de/de/kategorien?utf8=%E2%9C%93'
-                       '&entered_search=1&q=') + url
+            u = url['name_in_url']
+            fullUrl = 'https://www.wlw.de/de/firmen/' + u
             req = self.make_requests_from_url(fullUrl)
-            req.meta['job_dat'] = dict(initial_term=url, firms_pulled=0)
+            req.meta['job'] = {'page': 1}
+            req.meta['job']['nameInUrl'] = u
+            req.meta['rule'] = -1
             yield req
 
     def parse_group(self, response):

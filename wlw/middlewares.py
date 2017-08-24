@@ -19,76 +19,21 @@ class WlwSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
-        rule = response.meta.get('rule', 77)
-        # patch block begins
-        if rule == 77:
-            part = response.url.rsplit('?', 1)[0]
-            nameInUrl = part.rsplit('/', 1)[1]
-            response.meta['job_dat']['nameInUrl'] = nameInUrl
-            response.meta['job_dat']['page'] = 1
-        # patch block ends
-        if rule == 1:
-            # means one firm already processed:
-            self.logPacket(response, spider)
-        # elif rule in [0, 2]:
-        elif rule in [77, 0, 2]:  # patch block. assume cat already in db
-            pageSeen = spider.dbms.getPageSeen(
-                response.meta['job_dat']['nameInUrl'])
-            if response.meta['job_dat']['page'] in pageSeen:
-                response.meta['switchedOffRule'] = 1
+        if response.meta['rule'] == -1:
+            txt = response.xpath('//h1[@class="lead"]//text()').extract_first()
+            grp = re.search(r'[\d\.]+', txt)
+            if grp:
+                amt = int(grp.group().replace('.', ''))
+            else:
+                amt = 0
+            response['job']['items_reported'] = amt
         return None
 
     def process_spider_output(self, response, result, spider):
         for i in result:
             if isinstance(i, Request):
-                # i.meta['job_dat'] = response.meta['job_dat'].copy()
-                # ahuj1 = response.meta.get('job_dat')
-                # ahuj2 = i.meta.get('job_dat')
-                i.meta['job_dat'].update(response.meta['job_dat'])
-
-                spawnedByRule = response.meta.get('rule')
-                willRequestByRule = i.meta.get('rule')
-
-                self.assignPage(spawnedByRule, willRequestByRule, response, i)
-
-                # if (not spawnedByRule) and (willRequestByRule == 0):
-                if not spawnedByRule:
-                    nameInUrl = i.meta['job_dat']['nameInUrl']
-                    category, lastPage, total = self.openCategory(nameInUrl, i,
-                                                                 spider)
-                    pageSeen = spider.dbms.getPageSeen(nameInUrl)
-                    if len(pageSeen) == lastPage:
-                        i.meta['job_dat']['discard'] = True
-                    else:
-                        dic = dict(total=total, pages={}, caption=category)
-                        self.stats.set_value(nameInUrl, dic)
-                    i.meta['job_dat']['category'] = category
-                    i.meta['job_dat']['total'] = int(total)
-
-                # if (spawnedByRule in [0, 2]) and (willRequestByRule == 1):
-                if (spawnedByRule in [None, 2]) and (willRequestByRule == 1):
-                    # pageSeen = spider.dbms.getPageSeen(nameInUrl)
-                    # if i.meta['job_dat']['page'] in pageSeen:
-                    #     i.meta['job_dat']['discard'] = True
-                    fid = int(i.meta['firmaId'])
-                    if fid in spider.ids_seen:
-                        i.meta['job_dat']['discard'] = True
-                        # requests passed the filter logged in spider_input
-                        self.logPacket(i, spider, supress_scraped=True)
-                        idd = i.meta['firmaId']
-                        n = i.meta['job_dat']['nameInUrl']
-                        p = i.meta['job_dat']['page']
-                        l = i.meta['job_dat']['linksGot']
-                        msg = 'Duplicate req for {0}, page {1} w/links {2}, cat: {3}'
-                        logger.warning(msg.format(idd, p, l, n))
-                        self.stats.inc_value('Duplicated_requests')
-
-                # final decision
-                discard = i.meta.get('job_dat', {}).get('discard')
-                if not discard:
-                    yield i
-            else:
-                yield i
+                pass
+            yield i
 
     def process_spider_exception(self, response, exception, spider):
         # Called when a spider or process_spider_input() method
