@@ -46,3 +46,5 @@ https://stackoverflow.com/questions/5245047/modifiying-csv-export-in-scrapy
 
 Reimer: https://www.wlw.de/de/firma/456823
 HFS: https://www.wlw.de/de/firma/hfs-verpackungen-gmbh-1713082?category_id=95529&q=Tiefdruck
+
+font = monospaced

@@ -11,10 +11,27 @@ class DBMS:
         self.cur.row_factory = sqlite3.Row
         self.dumpCount = 0  # commit counter
         self.threshold = 20  # threshold when to commit
+        self.sqlLoadJobState = """
+                               SELECT name_in_url, page_seen FROM job_state
+                               """
+        self.sqlUpdateLastPage = """UPDATE job_state SET last_page = :pg
+                                    WHERE name_in_url = :name"""
+        self.sqlAddPageSeen = """UPDATE job_state SET page_seen = :pages
+                                         WHERE name_in_url = :nameInUrl"""
 
     def loadJobState(self):
-        output = self.cur.execute("SELECT name_in_url FROM job_state")
-        return output.fetchall()
+        return self.cur.execute(self.sqlLoadJobState).fetchall()
+
+    def updateLastPage(self, nameInUrl, page):
+        self.conn.execute(self.sqlUpdateLastPage, dict(name=nameInUrl,
+                                                       pg=int(page))
+                          )
+        self.conn.commit()
+
+    def addPageSeen(self, nameInUrl, pageSeenStr):
+        self.conn.execute(self.sqlAddPageSeen, dict(nameInUrl=nameInUrl,
+                                                    pages=pageSeenStr))
+        self.conn.commit()
 
     def bulkCommit(self):
         self.dumpCount += 1

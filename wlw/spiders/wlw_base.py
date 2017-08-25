@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class WlwBaseSpider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         super(WlwBaseSpider, self).__init__(*args, *kwargs)
-        self.dbms = None
+        self.jobState = None
 
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
@@ -30,42 +30,43 @@ class WlwBaseSpider(CrawlSpider):
         firm = part.rsplit('/', 1)[1]
         grp = re.search(r'\d+', firm)
         if grp:
-            output = grp.group()
+            output = int(grp.group())
         else:
             output = 0
             logger.error('cannot parse firmaId for url %s' % request.url)
-        request.meta['firmaId'] = output
-        request.meta['job_dat'] = {}
+        request.meta['job'] = {'firmaId': output}
         return request
 
-    def jobDat(request):
-        request.meta['job_dat'] = {}
+    def setPage(request):
+        grp = re.search(r'page=(\d+)', request.url)
+        if grp:
+            page = int(grp.group())
+        else:
+            page = 0
+            logger.error('cannot parse page No for url %s' % request.url)
+        request.meta['job'] = {'page': page}
         return request
 
     rules = (
-        # 0. to go from start urls keyword synonym list to specific tifedruck
-        Rule(LinkExtractor(restrict_css='a.list-group-item'),
-             process_request=addNameInUrl),
-        # 1. from firms list to specific firm
-        Rule(LinkExtractor(
-            restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
-            callback='parse_group', process_request=addFirmaId),
-        # 2. from a firm list page to the next one
+        # 0. go to next page
         Rule(LinkExtractor(restrict_xpaths=('//ul[@class="pagination"]/'
                                             'li[not(@class)]/'
                                             'a[text()[contains(.,"chste")]]')
                            ),
-             process_request=jobDat)
+             process_request=setPage),
+        # 1. from firms list to specific firm
+        Rule(LinkExtractor(
+            restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
+            callback='parse_group', process_request=addFirmaId)
     )
 
     def start_requests(self):
-        self.start_urls = self.dbms.loadJobState()
+        self.start_urls = self.jobState.getStartUrls()
         for url in self.start_urls:
-            u = url['name_in_url']
-            fullUrl = 'https://www.wlw.de/de/firmen/' + u
+            fullUrl = 'https://www.wlw.de/de/firmen/' + url
             req = self.make_requests_from_url(fullUrl)
             req.meta['job'] = {'page': 1}
-            req.meta['job']['nameInUrl'] = u
+            req.meta['job']['nameInUrl'] = url
             req.meta['rule'] = -1
             yield req
 
@@ -112,6 +113,7 @@ class WlwBaseSpider(CrawlSpider):
         if not isinstance(response, HtmlResponse):
             return
         seen = set()
+        # added functionality - check if rule deactivated
         switchOff = response.meta.get('switchedOffRule', -1)
         for n, rule in enumerate(self._rules):
             if n != switchOff:
@@ -119,17 +121,17 @@ class WlwBaseSpider(CrawlSpider):
                          if lnk not in seen]
                 if links and rule.process_links:
                     links = rule.process_links(links)
-
+                # added functionality - set amount of links got in the response
                 linksGot = len(links)
-                response.meta['job_dat']['linksGot'] = linksGot
-
-                respRule = response.meta.get('rule', -1)
-                if (n == 2) and (respRule in [0, 2]):
+                response.meta['job']['linksGot'] = linksGot
+                # added functionality - if no "next page links" found, means
+                # that response's page is the last one
+                respRule = response.meta.get('rule', -32)
+                if (n == 0) and (respRule in [-1, 0]):
                     if not links:
-                        name = response.meta['job_dat']['nameInUrl']
-                        pg = response.meta['job_dat']['page']
-                        self.dbms.updateLastPage(name, pg)
-                    # if len(pages_seen) === last_page then close category
+                        name = response.meta['job']['nameInUrl']
+                        pg = response.meta['job']['page']
+                        self.jobState.thisIsTheLastPage(name, pg)
 
                 for link in links:
                     seen.add(link)

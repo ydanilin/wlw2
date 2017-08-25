@@ -8,37 +8,45 @@ from scrapy.http import Request
 logger = logging.getLogger(__name__)
 
 class WlwSpiderMiddleware(object):
-    def __init__(self, stats):
-        self.stats = stats
+    def __init__(self, crawler):
+        self.spider = None
+        self.stats = crawler.stats
+        self.jobState = None
 
     @classmethod
     def from_crawler(cls, crawler):
         # This method is used by Scrapy to create your spiders.
-        s = cls(crawler.stats)
+        s = cls(crawler)
         crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
         return s
 
     def process_spider_input(self, response, spider):
         if response.meta['rule'] == -1:
-            txt = response.xpath('//h1[@class="lead"]//text()').extract_first()
-            grp = re.search(r'[\d\.]+', txt)
-            if grp:
-                amt = int(grp.group().replace('.', ''))
-            else:
-                amt = 0
-            response['job']['items_reported'] = amt
+            response['job']['items_reported'] = self.extractAmount(response)
+        seen = self.jobState.ifPageSeen(response['job']['nameInUrl'],
+                                        response['job']['page'])
+        if seen:
+            response['switchedOffRule'] = 1
         return None
 
     def process_spider_output(self, response, result, spider):
         for i in result:
             if isinstance(i, Request):
-                pass
+                i.meta['job'].update(response.meta['job'])
+                willRequestByRule = i.meta.get('rule')
+                if willRequestByRule == 1:
+                    nm = i.meta['job']['nameInUrl']
+                    pg = i.meta['job']['page']
+                    firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
+                    if firmasOnPage == i.meta['job']['linksGot']:
+                        self.jobState.addPageSeen(nm, pg)
+
+                    # discard or not discard here
             yield i
 
     def process_spider_exception(self, response, exception, spider):
         # Called when a spider or process_spider_input() method
         # (from other spider middleware) raises an exception.
-
         # Should return either None or an iterable of Response, dict
         # or Item objects.
         pass
@@ -47,13 +55,14 @@ class WlwSpiderMiddleware(object):
         # Called with the start requests of the spider, and works
         # similarly to the process_spider_output() method, except
         # that it doesn’t have a response associated.
-
         # Must return only requests (not items).
         for r in start_requests:
             yield r
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
+        self.spider = spider
+        self.jobState = spider.jobState
 
     def assignPage(self, spawnedByRule, willRequestByRule, resp, req):
         # if (not spawnedByRule) and (willRequestByRule == 0):
@@ -118,3 +127,12 @@ class WlwSpiderMiddleware(object):
                        ' Not recorded.')
                 logger.error(msg.format(txt))
         return category, lastPage, total
+
+    def extractAmount(self, response):
+        txt = response.xpath('//h1[@class="lead"]//text()').extract_first()
+        grp = re.search(r'[\d\.]+', txt)
+        if grp:
+            amt = int(grp.group().replace('.', ''))
+        else:
+            amt = 0
+        return amt
