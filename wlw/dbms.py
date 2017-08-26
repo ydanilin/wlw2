@@ -12,15 +12,23 @@ class DBMS:
         self.dumpCount = 0  # commit counter
         self.threshold = 20  # threshold when to commit
         self.sqlLoadJobState = """
-                               SELECT name_in_url, page_seen FROM job_state
+                               SELECT name_in_url,
+                                      last_page,
+                                      page_seen
+                               FROM job_state
                                """
+
         self.sqlUpdateLastPage = """UPDATE job_state SET last_page = :pg
                                     WHERE name_in_url = :name"""
         self.sqlAddPageSeen = """UPDATE job_state SET page_seen = :pages
                                          WHERE name_in_url = :nameInUrl"""
+        self.sqlLoadIdsSeen = """SELECT id_ FROM firmas"""
 
     def loadJobState(self):
         return self.cur.execute(self.sqlLoadJobState).fetchall()
+
+    def loadIdsSeen(self):
+        return self.cur.execute(self.sqlLoadIdsSeen).fetchall()
 
     def updateLastPage(self, nameInUrl, page):
         self.conn.execute(self.sqlUpdateLastPage, dict(name=nameInUrl,

@@ -3,6 +3,7 @@ import logging
 import re
 from scrapy import signals
 from scrapy.http import Request
+from .items import WlwItem
 
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,15 @@ class WlwSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
-        if response.meta['rule'] == -1:
-            response['job']['items_reported'] = self.extractAmount(response)
-        seen = self.jobState.ifPageSeen(response['job']['nameInUrl'],
-                                        response['job']['page'])
-        if seen:
-            response['switchedOffRule'] = 1
+        rule = response.meta.get('rule')
+        if rule:  # bypass if debugging page (scrapy parse)
+            if rule == -1:
+                response.meta['job']['items_reported'] = \
+                    self.extractAmount(response)
+            seen = self.jobState.ifPageSeen(response.meta['job']['nameInUrl'],
+                                            response.meta['job']['page'])
+            if seen:
+                response['switchedOffRule'] = 1
         return None
 
     def process_spider_output(self, response, result, spider):
@@ -35,13 +39,25 @@ class WlwSpiderMiddleware(object):
                 i.meta['job'].update(response.meta['job'])
                 willRequestByRule = i.meta.get('rule')
                 if willRequestByRule == 1:
-                    nm = i.meta['job']['nameInUrl']
-                    pg = i.meta['job']['page']
-                    firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
-                    if firmasOnPage == i.meta['job']['linksGot']:
-                        self.jobState.addPageSeen(nm, pg)
+                    firmaId = i.meta['job']['firmaId']
+                    bi = WlwItem(dict(firmaId=firmaId,
+                                      nameInUrl=i.meta['job']['nameInUrl'],
+                                      page=i.meta['job']['page'],
+                                      linksGot=i.meta['job']['linksGot'])
+                                 )
+                    if self.jobState.ifItemExists(firmaId):
+                        bi['isDuplicate'] = 1
+                        yield bi
+                    else:
+                        i.meta['item'] = bi
+                        yield i
+                        # nm = i.meta['job']['nameInUrl']
+                        # pg = i.meta['job']['page']
+                        # firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
+                        # if firmasOnPage == i.meta['job']['linksGot']:
+                        #     self.jobState.addPageSeen(nm, pg)
 
-                    # discard or not discard here
+                        # discard or not discard here
             yield i
 
     def process_spider_exception(self, response, exception, spider):
@@ -66,19 +82,19 @@ class WlwSpiderMiddleware(object):
 
     def assignPage(self, spawnedByRule, willRequestByRule, resp, req):
         # if (not spawnedByRule) and (willRequestByRule == 0):
-        #     req.meta['job_dat']['page'] = 1
+        #     req.meta['job']['page'] = 1
         # if spawnedByRule in [0, 2]:
         if spawnedByRule in [None, 2]:
             if willRequestByRule == 1:
-                pg = resp.meta['job_dat']['page']
-                req.meta['job_dat']['page'] = pg
+                pg = resp.meta['job']['page']
+                req.meta['job']['page'] = pg
             if willRequestByRule == 2:
-                pg = resp.meta['job_dat']['page']
-                req.meta['job_dat']['page'] = pg + 1
+                pg = resp.meta['job']['page']
+                req.meta['job']['page'] = pg + 1
 
     def logPacket(self, packet, spider, supress_scraped=False):
-        nameInUrl = packet.meta['job_dat']['nameInUrl']
-        page = packet.meta['job_dat']['page']
+        nameInUrl = packet.meta['job']['nameInUrl']
+        page = packet.meta['job']['page']
         record = self.stats.get_value(nameInUrl)
         pg = record['pages'].get(page, 0) + 1
         record['pages'][page] = pg
@@ -92,17 +108,17 @@ class WlwSpiderMiddleware(object):
         if not supress_scraped:
             # spider.dbms.updateScraped(nameInUrl, scr)
 
-            if pg == packet.meta['job_dat']['linksGot']:
+            if pg == packet.meta['job']['linksGot']:
                 spider.dbms.addPageSeen(nameInUrl, page)
 
-            # if scr == packet.meta['job_dat']['total']:
+            # if scr == packet.meta['job']['total']:
             #     # signal when all firms for sysnonym are fetched
             #     msg = ('For category %(c)s'
             #            ' all firms fetched (%(a)d).')
-            #     query = packet.meta['job_dat']['initial_term']
-            #     classif = packet.meta['job_dat']['category']
+            #     query = packet.meta['job']['initial_term']
+            #     classif = packet.meta['job']['category']
             #     log_args = {'c': query + '/' + classif,
-            #                 'a': packet.meta['job_dat']['total']}
+            #                 'a': packet.meta['job']['total']}
             #     logger.info(msg, log_args)
 
     def openCategory(self, nameInUrl, request, spider):
@@ -122,7 +138,7 @@ class WlwSpiderMiddleware(object):
                 spider.dbms.addCategory(nameInUrl, category, total)
             else:
                 category = txt
-                # i.meta['job_dat']['discard'] = True
+                # i.meta['job']['discard'] = True
                 msg = ('cannot parse name & amounts for category: {0}.'
                        ' Not recorded.')
                 logger.error(msg.format(txt))

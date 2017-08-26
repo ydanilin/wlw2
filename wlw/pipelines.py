@@ -4,12 +4,10 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
-import os
 import logging
 import re
-from scrapy import logformatter
+from scrapy import signals, logformatter
 from scrapy.exceptions import DropItem
-from .dbms import DBMS
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +15,9 @@ logger = logging.getLogger(__name__)
 class WlwPipeline(object):
 
     def process_item(self, item, spider):
+
+        # timestamp and wlw do not forget!
+
         firmaId = item['firmaId']
         addrSplitted = re.split(r',\s+', item['full_addr'])
         if len(addrSplitted) == 2:
@@ -49,52 +50,44 @@ class WlwPipeline(object):
 class DuplicatesPipeline(object):
 
     def __init__(self, crawler):
-        # self.ids_seen = set()
-        self.dbms = None
-        self.ids_seen = None
         self.stats = crawler.stats
+        self.jobState = None
 
     @classmethod
     def from_crawler(cls, crawler):
         # This method is used by Scrapy to create your spiders.
         s = cls(crawler)
-        # crawler.signals.connect(s.engine_stopped, signals.spider_closed)
+        crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
         return s
 
     def process_item(self, item, spider):
-        self.stats.inc_value('aa_proc_item_called')
-        call = self.stats.get_value('aa_proc_item_called')
-        itId = int(item['firmaId'])
-        if itId in spider.ids_seen:
+        # first, register item
+        fm = item['firmaId']
+        nm = item['nameInUrl']
+        pg = item['page']
+        firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
+        if firmasOnPage == item['linksGot']:
+            self.jobState.addPageSeen(nm, pg)
+        if item['isDuplicate'] or self.jobState.ifItemExists(fm):
+            # handle duplicates here
+
             self.stats.inc_value('Duplicated_items')
-            logger.warning("Duplicate item found for: %s" % item['firmaId'])
-            raise DropItem("Duplicate item found for: %s" % item['firmaId'])
+            logger.warning("Duplicate item found for: %s" % fm)
+            raise DropItem("Duplicate item found for: %s" % fm)
         else:
-            # self.ids_seen.add(itId)
-            spider.ids_seen.add(itId)
-            page = int(item['page'])
-            tOnPage = int(item['totalOnPage'])
-            qry = item['queryCat']
-            self.dbms.addIdSeen(itId, page, tOnPage, qry)
+            self.jobState.addItemToSeen(fm)
             return item
 
+    def spider_opened(self, spider):
+        self.jobState = spider.jobState
+
     def open_spider(self, spider):
-        full = os.path.dirname(os.path.abspath(__file__))
-        dbPath = os.path.join(full, spider.name + '.db')
-        self.dbms = DBMS(dbPath)
-        spider.dbms = self.dbms
-        spider.ids_seen = self.dbms.loadIdsSeen()
+        pass
 
     def close_spider(self, spider):
-        self.dbms.terminateDbms()
-        logger.warning('base closed (close_spider)')
-
-    # def spider_closed(self, spider):
-    #     spider.dbms.terminateDbms()
-
-    # def __del__(self):
-    #     self.dbms.terminateDbms()
+        pass
     # TODO study deferred
+
 
 class PoliteLogFormatter(logformatter.LogFormatter):
     def dropped(self, item, exception, response, spider):

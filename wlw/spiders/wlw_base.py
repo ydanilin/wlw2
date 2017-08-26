@@ -5,7 +5,7 @@ from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.http import HtmlResponse
 from scrapy.shell import inspect_response
-from ..items import WlwItem, WlwLoader
+from ..items import WlwItem, WlwLoader, AngebotItem, AngebotLoader
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,6 @@ class WlwBaseSpider(CrawlSpider):
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
     start_urls = []
-
-    def addNameInUrl(request):
-        part = request.url.rsplit('?', 1)[0]
-        nameInUrl = part.rsplit('/', 1)[1]
-        request.meta['job_dat'] = dict(nameInUrl=nameInUrl)
-        return request
 
     def addFirmaId(request):
         part = request.url.split('?')[0]
@@ -40,7 +34,7 @@ class WlwBaseSpider(CrawlSpider):
     def setPage(request):
         grp = re.search(r'page=(\d+)', request.url)
         if grp:
-            page = int(grp.group())
+            page = int(grp.group(grp.lastindex))
         else:
             page = 0
             logger.error('cannot parse page No for url %s' % request.url)
@@ -71,11 +65,11 @@ class WlwBaseSpider(CrawlSpider):
             yield req
 
     def parse_group(self, response):
-        l = WlwLoader(item=WlwItem(), response=response)
-        l.add_xpath('firmaId', '(.//*[@data-company-id]/@data-company-id)[1]')
-        #  The given field_name can be None, in which case values for multiple
-        #  fields may be added
-        l.add_value(None, self.responseMetaDict(response))
+        it = response.meta.get('item')
+        if not it:  # bypass if debugging page (scrapy parse)
+            it = WlwItem()
+        l = WlwLoader(item=it, response=response)
+        # 1. Name and address data
         vcard = l.nested_css('div.profile-vcard')
         nameAddr = vcard.nested_css('div.vcard-details')
         nameAddr.add_xpath('name', 'h1//text()')
@@ -84,30 +78,39 @@ class WlwBaseSpider(CrawlSpider):
         vcard.add_value('site', svgSelector)
         vcard.add_value('email', svgSelector)
         vcard.add_value('phone', svgSelector)
-
-        angebotSel = l.nested_xpath(
-            '//div[@id="products-content"]//article').selector
-        vcard.add_value('angebots', angebotSel)
-
+        # 2. Delivery, daten und fakten, zertificates
         facts = l.nested_xpath('.//div[@id="data-and-facts-content"]/article')
         l.add_value('delivery', facts.selector)
         l.add_value('facts', facts.selector)
         l.add_value('certificates', facts.selector)
+        # inspect_response(response, self)
+        # 3. Uber uns section
+        uberUns = l.nested_xpath('.//section[@id="about-us"]//article')
+        l.add_value('about', uberUns.selector)
+        l.add_value('key_people', uberUns.selector)
+        # 4. Ansprechpartner
+        sprech = l.nested_xpath(
+            './/section[@id="contacts"]//article[1]/div[2]')
+        l.add_value('common_person', sprech.selector)
+        # 5. Categories, bilatt
+        angebotSel = l.nested_xpath(
+            '//div[@id="products-content"]//article').selector
+        angebots = []
+        for angebot in self.get_angebots(angebotSel):
+            angebots.append(dict(angebot))
+        l.add_value('angebots', angebots)
 
         container = l.load_item()
-
         # inspect_response(response, self)
         return container
 
-    def responseMetaDict(self, response):
-        return dict(query=response.meta['job_dat']['initial_term'],
-                    category=response.meta['job_dat']['category'],
-                    total_firms=response.meta['job_dat']['total'],
-                    page=response.meta['job_dat']['page'],
-                    totalOnPage=response.meta['job_dat']['linksGot'],
-                    queryCat=response.meta['job_dat']['initial_term'] + '/' + \
-                             response.meta['job_dat']['category'])
     # TODO: how to combine multivalue in exporter
+
+    def get_angebots(self, selector):
+        for angebot in selector:
+            l = AngebotLoader(item=AngebotItem(), selector=selector)
+            yield l.load_item()
+
 
     def _requests_to_follow(self, response):
         if not isinstance(response, HtmlResponse):

@@ -1,7 +1,10 @@
 # coding=utf-8
 import os
+import logging
 from scrapy import signals
 from .dbms import DBMS
+
+logger = logging.getLogger(__name__)
 
 
 class JobState(object):
@@ -16,6 +19,7 @@ class JobState(object):
         }
         """
         self.jobState = {}
+        self.ids_seen = None
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -26,8 +30,9 @@ class JobState(object):
 
     def spider_opened(self, spider):
         spider.jobState = self
-        self.dbms = self.openDBMS()
+        self.dbms = self.openDBMS(spider)
         self.jobState = self.loadJobState()
+        self.ids_seen = self.loadIdsSeen()
 
     def spider_closed(self, spider):
         self.closeDBMS(self.dbms)
@@ -42,8 +47,17 @@ class JobState(object):
         else:
             return False
 
+    def ifItemExists(self, firmaId):
+        if firmaId in self.ids_seen:
+            return True
+        else:
+            return False
+
     def thisIsTheLastPage(self, nameInUrl, page):
         self.dbms.updateLastPage(nameInUrl, page)
+
+    def addItemToSeen(self, firmaId):
+        self.ids_seen.add(firmaId)
 
     def increaseOnPageCounter(self, nameInUrl, page):
         """returns increased firms on page counter"""
@@ -77,9 +91,17 @@ class JobState(object):
                 output[name] = {'pageSeen': pglist, 'pages': {}}
         return output
 
-    def openDBMS(self):
+    def loadIdsSeen(self):
+        sett = self.dbms.loadIdsSeen()
+        if sett:
+            output = [x['id_'] for x in sett]
+        else:
+            output = []
+        return set(output)
+
+    def openDBMS(self, spider):
         full = os.path.dirname(os.path.abspath(__file__))
-        dbPath = os.path.join(full, self.spider.name + '.db')
+        dbPath = os.path.join(full, spider.name + '.db')
         return DBMS(dbPath)
 
     def closeDBMS(self, dbms):
