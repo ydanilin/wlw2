@@ -57,6 +57,8 @@ class WlwBaseSpider(CrawlSpider):
     def start_requests(self):
         self.start_urls = self.jobState.getStartUrls()
         for url in self.start_urls:
+            # debug cap - remove before production
+            # if url == 'tiefdruck':
             fullUrl = 'https://www.wlw.de/de/firmen/' + url
             req = self.make_requests_from_url(fullUrl)
             req.meta['job'] = {'page': 1}
@@ -97,7 +99,7 @@ class WlwBaseSpider(CrawlSpider):
             '//div[@id="products-content"]//article').selector
         angebots = []
         for angebot in self.get_angebots(angebotSel):
-            angebots.append(dict(angebot))
+            angebots.append(angebot)
         l.add_value('angebots', angebots)
 
         container = l.load_item()
@@ -108,9 +110,26 @@ class WlwBaseSpider(CrawlSpider):
 
     def get_angebots(self, selector):
         for angebot in selector:
-            l = AngebotLoader(item=AngebotItem(), selector=selector)
+            l = AngebotLoader(item=AngebotItem(), selector=angebot)
+            listingId = angebot.xpath('a/@href').extract_first().strip()[1:]
+            l.add_value('listing_id', int(listingId[8:]))  # 8 = len('listing-')
+            l.add_xpath('caption', 'a/div/div[1]//text()')
+            l.add_xpath('is_producer', './/i[@title="Hersteller"]/@class')
+            l.add_xpath('is_service', './/i[@title="Dienstleister"]/@class')
+            l.add_xpath('is_distrib', './/i[@title="Händler"]/@class')
+            l.add_xpath('is_wholesaler', './/i[@title="Großhändler"]/@class')
+            p = angebot.xpath('div[@id=$val]//li', val=listingId)
+            l.add_value('offer_text', p)
+            l.add_value('contact_person', p)
+            l.add_value('phone', p)
+            l.add_value('email', p)
+            l.add_xpath('cat_id',
+                        'div[@id="{0}"]/footer/a/@data-category-id'.format(
+                            listingId)
+                        )
+            l.add_xpath('nameinurl',
+                        'div[@id="{0}"]/footer/a/@href'.format(listingId))
             yield l.load_item()
-
 
     def _requests_to_follow(self, response):
         if not isinstance(response, HtmlResponse):

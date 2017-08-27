@@ -24,13 +24,13 @@ class WlwSpiderMiddleware(object):
     def process_spider_input(self, response, spider):
         rule = response.meta.get('rule')
         if rule:  # bypass if debugging page (scrapy parse)
+            nm = response.meta['job']['nameInUrl']
             if rule == -1:
-                response.meta['job']['items_reported'] = \
-                    self.extractAmount(response)
-            seen = self.jobState.ifPageSeen(response.meta['job']['nameInUrl'],
-                                            response.meta['job']['page'])
+                total = self.extractAmount(response)
+                self.jobState.storeItemsReported(nm, total)
+            seen = self.jobState.ifPageSeen(nm, response.meta['job']['page'])
             if seen:
-                response['switchedOffRule'] = 1
+                response.meta['switchedOffRule'] = 1
         return None
 
     def process_spider_output(self, response, result, spider):
@@ -43,22 +43,23 @@ class WlwSpiderMiddleware(object):
                     bi = WlwItem(dict(firmaId=firmaId,
                                       nameInUrl=i.meta['job']['nameInUrl'],
                                       page=i.meta['job']['page'],
-                                      linksGot=i.meta['job']['linksGot'])
+                                      linksGot=i.meta['job']['linksGot'],
+                                      isDuplicate=0)
                                  )
                     if self.jobState.ifItemExists(firmaId):
                         bi['isDuplicate'] = 1
+                        i.meta['discard'] = 1
                         yield bi
                     else:
                         i.meta['item'] = bi
-                        yield i
-                        # nm = i.meta['job']['nameInUrl']
-                        # pg = i.meta['job']['page']
-                        # firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
-                        # if firmasOnPage == i.meta['job']['linksGot']:
-                        #     self.jobState.addPageSeen(nm, pg)
-
-                        # discard or not discard here
-            yield i
+                elif willRequestByRule == 0:
+                    pg = i.meta['job']['page']
+                    pg += 1
+                    i.meta['job']['page'] = pg
+                if not i.meta.get('discard'):
+                    yield i
+            else:
+                yield i
 
     def process_spider_exception(self, response, exception, spider):
         # Called when a spider or process_spider_input() method

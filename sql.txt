@@ -1,0 +1,9 @@
+
+DELETE FROM cat_per_firm;
+DELETE FROM categories;
+DELETE FROM firmas;
+UPDATE job_state SET items_reported = 0,
+                     items_stored = 0,
+                     last_page = -1,
+                     page_seen = '';
+

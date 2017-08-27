@@ -68,7 +68,8 @@ EXTENSIONS = {
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     'wlw.pipelines.DuplicatesPipeline': 300,
-    # 'wlw.pipelines.WlwPipeline': 400,
+    'wlw.pipelines.WlwPipeline': 400,
+    'wlw.pipelines.DBMSPipeline': 500
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

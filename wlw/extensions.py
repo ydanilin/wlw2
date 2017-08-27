@@ -13,8 +13,8 @@ class JobState(object):
         self.stats = crawler.stats
         self.dbms = None
         """
-        {nameInUrl: {pageSeen: [], pages = {1:4, 2:46, ...}},
-         nameInUrl: {pageSeen: [], pages = {5:18, 3:77, ...}},
+        {nameInUrl: {pageSeen: [], pages: {1:4, 2:46, ...}, last: 2, total: 50},
+         nameInUrl: {pageSeen: [], pages: {5:8, 3:77, ...}, last: 3, total: 88},
          .....
         }
         """
@@ -35,6 +35,15 @@ class JobState(object):
         self.ids_seen = self.loadIdsSeen()
 
     def spider_closed(self, spider):
+        # print(self.jobState)
+        for nm, content in self.jobState.items():
+            total = content['total']
+            if total != 0:
+                # print('store total ', total)
+                self.storeItemsReported(nm, total)
+            ps = content['pageSeen']
+            # if ps:
+            #     self
         self.closeDBMS(self.dbms)
 
 # *********** service functions ***********************
@@ -53,8 +62,18 @@ class JobState(object):
         else:
             return False
 
+    def storeItemsReported(self, nameInUrl, amount):
+        self.dbms.storeItemsReported(nameInUrl, amount)
+
+    def registerInTotals(self, nameInUrl):
+        actual = self.jobState[nameInUrl]['total']
+        actual += 1
+        self.jobState[nameInUrl]['total'] = actual
+        # logger.warning(actual)
+
     def thisIsTheLastPage(self, nameInUrl, page):
         self.dbms.updateLastPage(nameInUrl, page)
+        self.jobState[nameInUrl]['last'] = page
 
     def addItemToSeen(self, firmaId):
         self.ids_seen.add(firmaId)
@@ -67,14 +86,6 @@ class JobState(object):
         entry[page] = counter
         return counter
 
-    def addPageSeen(self, nameInUrl, page):
-        entry = self.jobState[nameInUrl]['pageSeen']
-        entry.append(page)
-        entry.sort()
-        self.jobState[nameInUrl]['pageSeen'] = entry
-        output = ','.join(map(lambda x: str(x), entry))
-        self.dbms.addPageSeen(nameInUrl, output)
-
     def loadJobState(self):
         """returns the whole jobState structure"""
         rows = self.dbms.loadJobState()
@@ -83,12 +94,16 @@ class JobState(object):
             name = row['name_in_url']
             lsp = row['last_page']
             pgs = row['page_seen']
+            stor = row['items_stored']
             if pgs:
                 pglist = list(map(lambda x: int(x), pgs.split(',')))
             else:
                 pglist = []
             if len(pglist) != lsp:
-                output[name] = {'pageSeen': pglist, 'pages': {}}
+                output[name] = {'pageSeen': pglist,
+                                'pages': {},
+                                'last': lsp,
+                                'total': stor}
         return output
 
     def loadIdsSeen(self):
@@ -98,6 +113,31 @@ class JobState(object):
         else:
             output = []
         return set(output)
+
+    def addPageSeen(self, nameInUrl, page):
+        entry = self.jobState[nameInUrl]['pageSeen']
+        entry.append(page)
+        entry.sort()
+        self.jobState[nameInUrl]['pageSeen'] = entry
+        output = ','.join(map(lambda x: str(x), entry))
+        self.dbms.addPageSeen(nameInUrl, output)
+        msg = 'Page {0} for category "{1}" completed'.format(page, nameInUrl)
+        logger.info(msg)
+        # log and commit when all pagess
+        if len(entry) == self.jobState[nameInUrl]['last']:
+            self.dbms.updateItemsStored(nameInUrl,
+                                        self.jobState[nameInUrl]['total'])
+            logger.info('Category "{0}" completed'.format(nameInUrl))
+
+    def storeItem(self, item):
+        self.dbms.storeItem(item)
+
+    def storeCategories(self, item):
+        firmaId = item['firmaId']
+        a = item.get('angebots', [])
+        for angebot in a:
+            self.dbms.storeCategory(angebot)
+            self.dbms.storeAngebot(firmaId, angebot)
 
     def openDBMS(self, spider):
         full = os.path.dirname(os.path.abspath(__file__))

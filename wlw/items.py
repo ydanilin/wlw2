@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
-
-# Define here the models for your scraped items
-#
-# See documentation in:
-# http://doc.scrapy.org/en/latest/topics/items.html
-
 import scrapy
 from scrapy.loader import ItemLoader
-from scrapy.loader.processors import TakeFirst, MapCompose, Join, Identity
+from scrapy.loader.processors import (TakeFirst, MapCompose, Join, Identity,
+                                      Compose)
 
 # 1. Name and address data
 
@@ -97,20 +92,7 @@ def sprechText(sprechTag):
         if any(word in txt[1] for word in ['Herr', 'Frau']):
             return txt[1].strip()
 
-
-def angebot(articleTag):
-    statusLoader = StatusItemLoader(item=StatusItem(), selector=articleTag)
-    iTag = statusLoader.nested_xpath('.//*[@title]')
-    aName = iTag.get_xpath('.//ancestor::div[2]//text()',
-                           TakeFirst(), str.strip)
-    iTag.add_value('status', iTag.selector)
-    statItem = statusLoader.load_item()
-    statuses = statItem.get('status')
-    if statuses:
-        statText = ' (' + statuses + ')'
-    else:
-        statText = ''
-    return aName + statText
+# 5. Categories, bilatt = see AngebotItem below
 
 
 class WlwBaseItem(scrapy.Item):
@@ -119,6 +101,8 @@ class WlwBaseItem(scrapy.Item):
     page = scrapy.Field()
     linksGot = scrapy.Field()
     isDuplicate = scrapy.Field()
+    timestamp = scrapy.Field()
+    source = scrapy.Field()
 
 
 class WlwItem(WlwBaseItem):
@@ -141,7 +125,7 @@ class WlwItem(WlwBaseItem):
     key_people = scrapy.Field()
     # 4. Ansprechpartner
     common_person = scrapy.Field()
-    # 5. Categories, bilatt
+    # 5. Categories, bilatt (see AngebotItem below)
     angebots = scrapy.Field()
 
 
@@ -162,40 +146,75 @@ class WlwLoader(ItemLoader):
     key_people_in = MapCompose(peopleText)
     # 4. Ansprechpartner
     common_person_in = MapCompose(sprechText, str.strip)
-
-
+    # 5. Categories, bilatt
     angebots_in = Identity()
-    # angebots_out = Join(', ')
+    angebots_out = Identity()
+
+
+# ************************************************************
+# 5. Categories, bilatt
+def offerText(liTag):
+    p = liTag.xpath('p')
+    if p:
+        return p.xpath('text()').extract_first()
+
+
+def person(liTag):
+    if liTag.xpath('i'):
+        return liTag.xpath('text()').extract_first()
+
+
+def phone(liTag):
+    a = liTag.xpath('a')
+    if a:
+        txt = a.extract_first()
+        if 'xlink:href="#svg-icon-earphone"' in txt:
+            return a.xpath('@data-content').extract_first()
+
+
+def email(liTag):
+    a = liTag.xpath('a')
+    if a:
+        txt = a.extract_first()
+        if 'xlink:href="#svg-icon-email"' in txt:
+            return a.xpath('.//text()').extract_first()
+
+
+def nameInUrl(url):
+    splitt = url.rsplit('/', 1)
+    if len(splitt) == 2:
+        part = splitt[1].split('?')
+        return part[0]
+
 
 
 class AngebotItem(scrapy.Item):
-    name = scrapy.Field()
+    listing_id = scrapy.Field()
+    caption = scrapy.Field()
+    is_producer = scrapy.Field()
+    is_service = scrapy.Field()
+    is_distrib = scrapy.Field()
+    is_wholesaler = scrapy.Field()
+    offer_text = scrapy.Field()
+    contact_person = scrapy.Field()
+    phone = scrapy.Field()
+    email = scrapy.Field()
+    cat_id = scrapy.Field()
+    nameinurl = scrapy.Field()
 
 
 class AngebotLoader(ItemLoader):
+    default_input_processor = MapCompose(str.strip)
     default_output_processor = TakeFirst()
 
-
-class StatusItem(scrapy.Item):
-    status = scrapy.Field()
-
-
-def isStatusActive(iTag):
-    if iTag.xpath('./@class').extract_first().find('disabled') < 0:
-        type_ = iTag.xpath('./@title').extract_first().strip()
-        if type_ == 'Hersteller':
-            return 'producer'
-        elif type_ == 'Dienstleister':
-            return 'service'
-        elif type_ == 'Händler':
-            return 'distrib'
-        elif type_ == 'Großhändler':
-            return 'wholesaler'
-
-
-class StatusItemLoader(ItemLoader):
-    status_in = MapCompose(isStatusActive)
-    status_out = Join(', ')
-
-
-
+    listing_id_in = Identity()
+    is_producer_in = MapCompose(lambda x: 0 if 'disabled' in x else 1)
+    is_service_in = MapCompose(lambda x: 0 if 'disabled' in x else 1)
+    is_distrib_in = MapCompose(lambda x: 0 if 'disabled' in x else 1)
+    is_wholesaler_in = MapCompose(lambda x: 0 if 'disabled' in x else 1)
+    offer_text_in = MapCompose(offerText, str.strip)
+    contact_person_in = MapCompose(person, str.strip)
+    phone_in = MapCompose(phone, str.strip)
+    email_in = MapCompose(email, str.strip, lambda x: x[::-1])
+    cat_id_in = MapCompose(str.strip, lambda x: int(x))
+    nameinurl_in = MapCompose(nameInUrl, str.strip)
