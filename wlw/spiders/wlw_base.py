@@ -58,7 +58,12 @@ class WlwBaseSpider(CrawlSpider):
         self.start_urls = self.jobState.getStartUrls()
         for url in self.start_urls:
             # debug cap - remove before production
-            # if url == 'tiefdruck':
+            # if url == 'tiefdruck' or \
+            #             url == 'automatisierungssysteme-fuer-druckereien' or \
+            #             url == 'bedrucken-von-aluminiumfolien' or \
+            #             url == 'digitaler-foliendruck' or \
+            #             url == 'golddruck' or \
+            #             url == 'siebdruck-auf-glas':
             fullUrl = 'https://www.wlw.de/de/firmen/' + url
             req = self.make_requests_from_url(fullUrl)
             req.meta['job'] = {'page': 1}

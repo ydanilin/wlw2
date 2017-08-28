@@ -79,6 +79,7 @@ class DuplicatesPipeline(object):
         fm = item['firmaId']
         nm = item['nameInUrl']
         pg = item['page']
+        self.stats.inc_value('Items:_total')
         # register item in pages seen
         firmasOnPage = self.jobState.increaseOnPageCounter(nm, pg)
         if firmasOnPage == item['linksGot']:
@@ -86,11 +87,12 @@ class DuplicatesPipeline(object):
         if item['isDuplicate'] or self.jobState.ifItemExists(fm):
             # handle duplicates here
 
-            self.stats.inc_value('Duplicated_items')
+            self.stats.inc_value('Items:_duplicated')
             logger.warning("Duplicate item found for: %s" % fm)
             raise DropItem("Duplicate item found for: %s" % fm)
         else:
             # register item in totals
+            self.stats.inc_value('Items:_stored')
             self.jobState.registerInTotals(nm)
             self.jobState.addItemToSeen(fm)
             return item

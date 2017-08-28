@@ -10,7 +10,7 @@ class DBMS:
         self.cur = self.conn.cursor()
         self.cur.row_factory = sqlite3.Row
         self.dumpCount = 0  # commit counter
-        self.threshold = 20  # threshold when to commit
+        self.threshold = 50  # threshold when to commit
         self.sqlLoadJobState = """
                                SELECT name_in_url,
                                       last_page,
@@ -120,7 +120,7 @@ class DBMS:
     def updateItemsStored(self, nameInUrl, items):
         self.conn.execute(self.sqlUpdateItemsStored, dict(nameInUrl=nameInUrl,
                                                            amt=items))
-        self.conn.commit()
+        self.bulkCommit()
 
     def addPageSeen(self, nameInUrl, pageSeenStr):
         self.conn.execute(self.sqlAddPageSeen, dict(nameInUrl=nameInUrl,

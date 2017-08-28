@@ -36,15 +36,16 @@ class JobState(object):
 
     def spider_closed(self, spider):
         # print(self.jobState)
-        for nm, content in self.jobState.items():
-            total = content['total']
-            if total != 0:
+        # for nm, content in self.jobState.items():
+        #     total = content['total']
+        #     if total != 0:
                 # print('store total ', total)
-                self.storeItemsReported(nm, total)
-            ps = content['pageSeen']
+                # self.storeItemsReported(nm, total)
+            # ps = content['pageSeen']
             # if ps:
             #     self
         self.closeDBMS(self.dbms)
+        logger.info('Database closed')
 
 # *********** service functions ***********************
     def getStartUrls(self):
@@ -69,7 +70,7 @@ class JobState(object):
         actual = self.jobState[nameInUrl]['total']
         actual += 1
         self.jobState[nameInUrl]['total'] = actual
-        # logger.warning(actual)
+        self.dbms.updateItemsStored(nameInUrl, actual)
 
     def thisIsTheLastPage(self, nameInUrl, page):
         self.dbms.updateLastPage(nameInUrl, page)
@@ -125,8 +126,8 @@ class JobState(object):
         logger.info(msg)
         # log and commit when all pagess
         if len(entry) == self.jobState[nameInUrl]['last']:
-            self.dbms.updateItemsStored(nameInUrl,
-                                        self.jobState[nameInUrl]['total'])
+            # self.dbms.updateItemsStored(nameInUrl,
+            #                             self.jobState[nameInUrl]['total'])
             logger.info('Category "{0}" completed'.format(nameInUrl))
 
     def storeItem(self, item):

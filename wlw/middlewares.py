@@ -23,14 +23,14 @@ class WlwSpiderMiddleware(object):
 
     def process_spider_input(self, response, spider):
         rule = response.meta.get('rule')
-        if rule:  # bypass if debugging page (scrapy parse)
-            nm = response.meta['job']['nameInUrl']
-            if rule == -1:
-                total = self.extractAmount(response)
-                self.jobState.storeItemsReported(nm, total)
-            seen = self.jobState.ifPageSeen(nm, response.meta['job']['page'])
-            if seen:
-                response.meta['switchedOffRule'] = 1
+        # if rule:  # bypass if debugging page (scrapy parse)
+        nm = response.meta['job']['nameInUrl']
+        if rule == -1:
+            total = self.extractAmount(response)
+            self.jobState.storeItemsReported(nm, total)
+        seen = self.jobState.ifPageSeen(nm, response.meta['job']['page'])
+        if seen:
+            response.meta['switchedOffRule'] = 1
         return None
 
     def process_spider_output(self, response, result, spider):
