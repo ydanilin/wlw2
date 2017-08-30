@@ -39,7 +39,7 @@ ORDER BY j.cat_id
 -- based on job_state categories, no duplicates
 SELECT f.source,
        f.timestamp,
-       c.caption AS category,
+       group_concat(c.caption, ";") AS category,
        f.id_ AS firmaId,
        f.name AS name,       
        f.full_addr,       
