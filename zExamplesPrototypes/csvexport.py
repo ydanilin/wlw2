@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import csv
 import sqlite3
 
 
@@ -103,6 +104,7 @@ WHERE f.id_ = ?"""
 
     def recordset(self):
         return self.cur.execute(self.sqlRecordset).fetchall()
+        # return self.cur.execute(self.sqlRecordset).fetchmany(100)
 
     def composeAngebots(self, firmaId):
         return self.cur.execute(self.sqlAngebots, (firmaId,)).fetchone()
@@ -112,6 +114,7 @@ WHERE f.id_ = ?"""
 
 
 if __name__ == '__main__':
+    # discover database file placement
     rootDir = 'wlw2'
     curDir = os.path.dirname(os.path.abspath(__file__))
     dir = ''
@@ -120,21 +123,54 @@ if __name__ == '__main__':
     projectPath = os.path.join(curDir, dir)
     dbPath = os.path.join(projectPath, 'wlw', 'wlw_base.db')
     dbms = DBMS(dbPath)
+    # init csv
+    fn = ['source',
+          'research_ts',
+          'category',
+          'total_firms',
+          'firmaId',
+          'name',
+          'full_addr',
+          'street',
+          'building',
+          'zip',
+          'city',
+          'phone',
+          'email',
+          'site',
+          'delivery',
+          'akquisition_info',
+          'certificates',
+          'company_info',
+          'key_people',
+          'main_contact',
+          'full_search'
+          ]
+    f = open('wlw_aug.csv', 'w', newline='', encoding='utf-8')
+    wrt = csv.DictWriter(f, fieldnames=fn, extrasaction='ignore')
+    wrt.writeheader()
+    # process
+    print('Doing queries...')
     totals = dbms.countTotals()
     recordset = dbms.recordset()
     max_ = len(recordset)
     acc = 0
+    print('Starting the process...')
     for i, rec in enumerate(recordset):
         rec['total_firms'] = totals[rec['name_in_url']]['total_firms']
         fid = rec['firmaId']
         ang = dbms.composeAngebots(fid)
         rec['full_search'] = ang['det']
+        wrt.writerow(rec)
         acc += 1
-        if acc >= 10:
+        if acc >= 20:
+            f.flush()
             print('processed {0} of {1} records'.format(i+1, max_))
             acc = 0
     print('Completed.')
     dbms.terminateDbms()
+    f.close()
+
 
 
 
