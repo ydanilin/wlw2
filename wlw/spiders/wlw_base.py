@@ -148,9 +148,11 @@ class WlwBaseSpider(CrawlSpider):
                          if lnk not in seen]
                 if links and rule.process_links:
                     links = rule.process_links(links)
+                # TODO consider direct assignment
                 # added functionality - set amount of links got in the response
                 linksGot = len(links)
                 response.meta['job']['linksGot'] = linksGot
+                # TODO remove the last page recognition somewhere in middleware
                 # added functionality - if no "next page links" found, means
                 # that response's page is the last one
                 respRule = response.meta.get('rule', -32)
