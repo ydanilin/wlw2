@@ -53,6 +53,7 @@ class WlwSpiderMiddleware(object):
                     else:
                         i.meta['item'] = bi
                 elif willRequestByRule == 0:
+                    # TODO check if this block is needed
                     pg = i.meta['job']['page']
                     pg += 1
                     i.meta['job']['page'] = pg
